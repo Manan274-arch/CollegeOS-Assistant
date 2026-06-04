@@ -11,6 +11,7 @@ from tools import (
     show_reminders,
     save_project_discussion,
     show_project_summary,
+    add_timetable_entry,
     show_timetable
 )
 
@@ -94,6 +95,50 @@ Use this when the user asks what has been discussed or saved about a project.
 Required fields:
 - project_name
 
+add_timetable_entry
+Use this when the user wants to add a class/lab/session to their timetable.
+
+Required data:
+- day
+- start_time
+- subject
+
+Optional data:
+- end_time
+- room
+- teacher
+- notes
+
+Examples:
+User: add DAA on Monday from 10:30 to 11:30
+Output:
+{
+  "intent": "add_timetable_entry",
+  "data": {
+    "day": "Monday",
+    "start_time": "10:30",
+    "end_time": "11:30",
+    "subject": "DAA",
+    "room": null,
+    "teacher": null,
+    "notes": null
+  }
+}
+
+User: add OS lab every Tuesday 2 to 4 in CL-11
+Output:
+{
+  "intent": "add_timetable_entry",
+  "data": {
+    "day": "Tuesday",
+    "start_time": "14:00",
+    "end_time": "16:00",
+    "subject": "OS lab",
+    "room": "CL-11",
+    "teacher": null,
+    "notes": null
+  }
+}
 11. show_timetable
 Use this when the user asks for timetable.
 Optional fields:
@@ -201,6 +246,17 @@ def handle_message(user_message):
             project_name=data.get("project_name")
         )
 
+    elif intent == "add_timetable_entry":
+        return add_timetable_entry(
+            day=data.get("day"),
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
+            subject=data.get("subject"),
+            room=data.get("room"),
+            teacher=data.get("teacher"),
+            notes=data.get("notes")
+        )
+    
     elif intent == "show_timetable":
         return show_timetable(
             day=data.get("day")

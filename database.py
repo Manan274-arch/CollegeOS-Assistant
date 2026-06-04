@@ -100,17 +100,6 @@ def create_tables():
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS uploaded_images(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        image_type TEXT,
-        file_path TEXT NOT NULL,
-        extracted_text TEXT,
-        status TEXT DEFAULT 'uploaded',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
-
-    cursor.execute("""
     CREATE TABLE IF NOT EXISTS timetable_entries(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         day TEXT NOT NULL,
