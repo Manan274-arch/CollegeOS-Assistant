@@ -142,19 +142,9 @@ def test_project_memory():
     print_result(summary)
 
 
-def test_images_and_timetable():
-    print("\n--- TESTING IMAGES AND TIMETABLE ---")
-
-    result = save_uploaded_image(
-        image_type="timetable",
-        file_path="data/uploads/sample_timetable.jpg",
-        extracted_text="Monday 09:00 to 10:00 Mathematics Room 101",
-        status="processed"
-    )
-
-    print("\nSave uploaded image result:")
-    print_result(result)
-
+def test_timetable():
+    
+    print("\n--- TESTING TIMETABLE ---")
     timetable_result = add_timetable_entry(
         day="Monday",
         start_time="09:00",
@@ -182,7 +172,7 @@ if __name__ == "__main__":
     test_attendance()
     test_reminders()
     test_project_memory()
-    test_images_and_timetable()
+    test_timetable()
 
     print("\nAll core tests completed.")
 

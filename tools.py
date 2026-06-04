@@ -1,5 +1,5 @@
 from database import get_connection
-
+from datetime import datetime
 
 def add_assignment(title, subject=None, deadline=None, priority="normal", notes=None):
     conn=get_connection()
@@ -157,8 +157,37 @@ def show_attendance_summary():
 
 
 def create_reminder(title, reminder_time, repeat_rule=None):
-    conn=get_connection()
-    cursor=conn.cursor()
+    if not title:
+        return "Please mention what I should remind you about."
+
+    if not reminder_time:
+        return (
+            "Please mention a clear reminder time.\n\n"
+            "Examples:\n"
+            "- remind me to drink water in 2 mins\n"
+            "- remind me to submit OS lab at 8 PM\n"
+            "- remind me to submit OS lab on 2026-06-04 at 20:00"
+        )
+
+    try:
+        reminder_datetime = datetime.strptime(reminder_time, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return (
+            "I could not understand the reminder time clearly.\n\n"
+            "Please use a clear time like:\n"
+            "2026-06-04 20:00"
+        )
+
+    now = datetime.now()
+
+    if reminder_datetime <= now:
+        return (
+            "That reminder time is already in the past.\n\n"
+            "Please give a future time."
+        )
+
+    conn = get_connection()
+    cursor = conn.cursor()
 
     cursor.execute("""
     INSERT INTO reminders(title, reminder_time, repeat_rule)
@@ -166,11 +195,10 @@ def create_reminder(title, reminder_time, repeat_rule=None):
     """, (title, reminder_time, repeat_rule))
 
     conn.commit()
-    reminder_id=cursor.lastrowid
+    reminder_id = cursor.lastrowid
     conn.close()
 
     return f"Reminder created successfully with ID {reminder_id}."
-
 
 def show_reminders(status="active"):
     conn=get_connection()
@@ -203,6 +231,69 @@ def show_reminders(status="active"):
 
     return "\n\n".join(result)
 
+def get_active_reminders():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    SELECT * FROM reminders
+    WHERE status = ?
+    ORDER BY reminder_time ASC
+    """, ("active",))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    return rows
+
+def mark_reminder_notification_sent(reminder_id, notification_column):
+    allowed_columns = [
+        "notified_1d",
+        "notified_12h",
+        "notified_6h",
+        "notified_3h",
+        "notified_1h",
+        "notified_final"
+    ]
+
+    if notification_column not in allowed_columns:
+        return "Invalid notification column."
+
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(f"""
+    UPDATE reminders
+    SET {notification_column} = ?
+    WHERE id = ?
+    """, ("yes", reminder_id))
+
+    conn.commit()
+    conn.close()
+
+    return f"{notification_column} marked as sent for reminder {reminder_id}."
+
+def mark_reminder_done(reminder_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+    UPDATE reminders
+    SET status = ?
+    WHERE id = ?
+    AND status = ?
+    """, ("done", reminder_id, "active"))
+
+    conn.commit()
+
+    rows_updated = cursor.rowcount
+
+    conn.close()
+
+    if rows_updated == 0:
+        return f"No active reminder found with ID {reminder_id}."
+
+    return f"Reminder {reminder_id} marked as done."
 
 def save_project_discussion(project_name, message_type, content):
     conn=get_connection()

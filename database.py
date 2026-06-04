@@ -48,15 +48,23 @@ def create_tables():
     """)
 
     cursor.execute("""
-    CREATE TABLE IF NOT EXISTS reminders(
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        reminder_time TEXT NOT NULL,
-        repeat_rule TEXT,
-        status TEXT DEFAULT 'active',
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
-    )
-    """)
+CREATE TABLE IF NOT EXISTS reminders(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    reminder_time TEXT NOT NULL,
+    repeat_rule TEXT,
+    status TEXT DEFAULT 'active',
+
+    notified_1d TEXT DEFAULT 'no',
+    notified_12h TEXT DEFAULT 'no',
+    notified_6h TEXT DEFAULT 'no',
+    notified_3h TEXT DEFAULT 'no',
+    notified_1h TEXT DEFAULT 'no',
+    notified_final TEXT DEFAULT 'no',
+
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+""")
 
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS drafts(

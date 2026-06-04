@@ -1,4 +1,6 @@
 import json
+import re
+from datetime import datetime
 
 from llm import ask_llm
 from tools import (
@@ -70,12 +72,43 @@ Optional fields:
 - subject
 
 7. create_reminder
-Use this when the user wants to save a reminder.
-Required fields:
+Use this when the user wants to create a reminder.
+
+Required data:
 - title
-Optional fields:
 - reminder_time
-- notes
+
+Optional data:
+- repeat_rule
+
+Important:
+reminder_time must be in this exact format:
+YYYY-MM-DD HH:MM
+
+If the user gives a relative time like "tomorrow at 8 PM", convert it to an exact date and time based on the current date given in the user message/context.
+If the exact date cannot be determined, ask for clarification using normal_chat instead of creating a reminder.
+
+Examples:
+User: remind me to submit OS lab on 2026-06-04 at 20:00
+Output:
+{
+  "intent": "create_reminder",
+  "data": {
+    "title": "submit OS lab",
+    "reminder_time": "2026-06-04 20:00",
+    "repeat_rule": null
+  }
+}
+
+Important reminder time rule:
+If the user gives a 12-hour clock time without AM or PM, do not guess.
+For example, "at 6:30", "at 8", or "by 10:15" is ambiguous.
+In such cases, still return create_reminder only if the backend can ask clarification, but do not invent AM or PM.
+Clear times include:
+- 6:30 PM
+- 8 AM
+- 18:30
+- tomorrow at 7 PM
 
 8. show_reminders
 Use this when the user wants to see reminders.
@@ -161,8 +194,15 @@ Important rules:
 
 
 def decide_intent(user_message):
+    current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M")
+
+    routing_message = (
+        f"Current local datetime: {current_datetime}\n\n"
+        f"User message: {user_message}"
+    )
+
     llm_output = ask_llm(
-        user_message=user_message,
+        user_message=routing_message,
         system_message=INTENT_SYSTEM_MESSAGE,
         temperature=0,
         max_tokens=400
@@ -180,7 +220,48 @@ def decide_intent(user_message):
             }
         }
 
+def has_ambiguous_time(user_message):
+    text = user_message.lower()
 
+    # Relative times are clear.
+    # Examples: "in 2 mins", "in 1 hour", "after 30 minutes"
+    if re.search(r"\b(in|after)\s+\d+\s*(min|mins|minute|minutes|hour|hours)\b", text):
+        return False
+
+    # If AM/PM is clearly mentioned, it is not ambiguous.
+    # Supports: am, pm, a.m., p.m.
+    if re.search(r"\b(am|pm)\b", text) or re.search(r"\b(a\.m\.|p\.m\.)", text):
+        return False
+
+    # Detect time like 6:37, 10:30, 12:05
+    time_matches = re.findall(r"\b(\d{1,2}):(\d{2})\b", text)
+
+    for hour_text, minute_text in time_matches:
+        hour = int(hour_text)
+
+        # 13:00 to 23:59 is clearly 24-hour format.
+        if 13 <= hour <= 23:
+            continue
+
+        # 00:00 is also clearly 24-hour format.
+        if hour == 0:
+            continue
+
+        # 1:00 to 12:59 without AM/PM is ambiguous.
+        if 1 <= hour <= 12:
+            return True
+
+    # Detect plain hour times like:
+    # "at 6", "by 8", "before 10", "around 7"
+    plain_hour_match = re.search(
+        r"\b(at|by|before|around)\s+([1-9]|1[0-2])\b",
+        text
+    )
+
+    if plain_hour_match:
+        return True
+
+    return False
 def handle_message(user_message):
     decision = decide_intent(user_message)
 
@@ -222,16 +303,24 @@ def handle_message(user_message):
             subject=data.get("subject")
         )
 
-    elif intent == "create_reminder":
+    if intent == "create_reminder":
+        if has_ambiguous_time(user_message):
+            return (
+                "Please mention AM or PM for the reminder time.\n\n"
+                "Example:\n"
+                "remind me to drink water at 6:37 PM\n\n"
+                "You can also use 24-hour format, like 18:37."
+            )
+
         return create_reminder(
             title=data.get("title"),
             reminder_time=data.get("reminder_time"),
-            notes=data.get("notes")
+            repeat_rule=data.get("repeat_rule")
         )
 
     elif intent == "show_reminders":
         return show_reminders(
-            status=data.get("status")
+            status=data.get("status") or "active"
         )
 
     elif intent == "save_project_discussion":

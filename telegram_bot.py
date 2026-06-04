@@ -4,12 +4,28 @@ from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, Con
 
 from config import TELEGRAM_BOT_TOKEN
 from agent import handle_message
+from scheduler import start_scheduler
 
+
+USER_CHAT_ID = None
+scheduler_started = False
+scheduler_instance = None
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global USER_CHAT_ID
+    global scheduler_started
+    global scheduler_instance
+
+    USER_CHAT_ID = update.effective_chat.id
+
+    if not scheduler_started:
+        scheduler_instance = start_scheduler(context.bot, USER_CHAT_ID)
+        scheduler_started = True
+
     await update.message.reply_text(
         "Hi, I am CollegeOS Agent.\n\n"
         "You can manage your college work through text messages.\n\n"
+        "Reminder scheduler is now active.\n\n"
         "Examples:\n"
         "- Add DAA assignment due tomorrow\n"
         "- Show my assignments\n"
@@ -19,7 +35,6 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Show Monday timetable\n"
     )
 
-
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "CollegeOS Agent currently supports:\n\n"
@@ -28,8 +43,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Attendance\n"
         "- Reminders\n"
         "- Project notes\n"
-        "- Manual timetable add/query\n\n"
-        "For now, image OCR has been removed from Version 1 to keep the bot reliable."
+        "- Manual timetable add/query\n"
+        "- Automatic reminder notifications\n\n"
     )
 
 
