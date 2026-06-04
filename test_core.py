@@ -185,3 +185,6 @@ if __name__ == "__main__":
     test_images_and_timetable()
 
     print("\nAll core tests completed.")
+
+    reset_database()
+    print("Database reset after testing.")
