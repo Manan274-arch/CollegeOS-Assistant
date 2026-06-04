@@ -41,7 +41,6 @@ Required fields:
 Optional fields:
 - subject
 - deadline
-- status
 - notes
 
 3. show_assignments
@@ -151,7 +150,6 @@ def handle_message(user_message):
             title=data.get("title"),
             subject=data.get("subject"),
             deadline=data.get("deadline"),
-            status=data.get("status", "pending"),
             notes=data.get("notes")
         )
 
