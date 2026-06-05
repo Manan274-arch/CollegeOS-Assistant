@@ -27,6 +27,12 @@ def ask_llm(
         max_tokens=max_tokens
     )
 
+    if hasattr(response, "usage") and response.usage:
+        print("LLM usage:")
+        print("Prompt tokens:", response.usage.prompt_tokens)
+        print("Completion tokens:", response.usage.completion_tokens)
+        print("Total tokens:", response.usage.total_tokens)
+
     answer = response.choices[0].message.content
 
     return answer

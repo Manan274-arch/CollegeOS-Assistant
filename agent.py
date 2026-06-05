@@ -1,6 +1,6 @@
 import json
 import re
-from datetime import datetime
+from datetime import datetime,timedelta
 
 from llm import ask_llm
 from tools import (
@@ -14,184 +14,115 @@ from tools import (
     save_project_discussion,
     show_project_summary,
     add_timetable_entry,
-    show_timetable
+    show_timetable,
+    show_daily_dashboard
 )
 
 
 INTENT_SYSTEM_MESSAGE = """
 You are the intent router for CollegeOS Agent.
 
-Your job is to read the user's message and decide what the program should do.
+Return ONLY valid JSON. No markdown. No explanation.
 
-Return ONLY valid JSON.
-Do not add explanations.
-Do not use markdown.
+Current possible intents:
 
-Available intents:
-
-1. normal_chat
-Use this when the user is asking a general question or having a normal conversation.
-Examples:
-- Explain recursion
-- What is DBMS?
-- Help me write a message
-- Motivate me to study
-
-2. add_assignment
-Use this when the user wants to save a new assignment.
-Required fields:
-- title
-Optional fields:
-- subject
-- deadline
-- notes
-
-3. show_assignments
-Use this when the user wants to see assignments.
-Optional fields:
-- status
-
-4. update_assignment_status
-Use this when the user wants to update an assignment status.
-Required fields:
-- assignment_id
-- status
-
-5. mark_attendance
-Use this when the user wants to mark attendance.
-Required fields:
-- subject
-- status
-Optional fields:
-- date
-- notes
-
-6. show_attendance_summary
-Use this when the user wants attendance summary.
-Optional fields:
-- subject
-
-7. create_reminder
-Use this when the user wants to create a reminder.
-
-Required data:
-- title
-- reminder_time
-
-Optional data:
-- repeat_rule
-
-Important:
-reminder_time must be in this exact format:
-YYYY-MM-DD HH:MM
-
-If the user gives a relative time like "tomorrow at 8 PM", convert it to an exact date and time based on the current date given in the user message/context.
-If the exact date cannot be determined, ask for clarification using normal_chat instead of creating a reminder.
-
-Examples:
-User: remind me to submit OS lab on 2026-06-04 at 20:00
-Output:
-{
-  "intent": "create_reminder",
-  "data": {
-    "title": "submit OS lab",
-    "reminder_time": "2026-06-04 20:00",
-    "repeat_rule": null
-  }
-}
-
-Important reminder time rule:
-If the user gives a 12-hour clock time without AM or PM, do not guess.
-For example, "at 6:30", "at 8", or "by 10:15" is ambiguous.
-In such cases, still return create_reminder only if the backend can ask clarification, but do not invent AM or PM.
-Clear times include:
-- 6:30 PM
-- 8 AM
-- 18:30
-- tomorrow at 7 PM
-
-8. show_reminders
-Use this when the user wants to see reminders.
-Optional fields:
-- status
-
-9. save_project_discussion
-Use this when the user wants to save a project idea, project discussion, rejected idea, decision, or tech stack note.
-Required fields:
-- project_name
-- message
-Optional fields:
-- discussion_type
-
-10. show_project_summary
-Use this when the user asks what has been discussed or saved about a project.
-Required fields:
-- project_name
-
+normal_chat
+add_assignment
+show_assignments
+update_assignment_status
+mark_attendance
+show_attendance_summary
+create_reminder
+show_reminders
+save_project_discussion
+show_project_summary
 add_timetable_entry
-Use this when the user wants to add a class/lab/session to their timetable.
+show_timetable
+show_daily_dashboard
 
-Required data:
-- day
-- start_time
-- subject
-
-Optional data:
-- end_time
-- room
-- teacher
-- notes
-
-Examples:
-User: add DAA on Monday from 10:30 to 11:30
-Output:
-{
-  "intent": "add_timetable_entry",
-  "data": {
-    "day": "Monday",
-    "start_time": "10:30",
-    "end_time": "11:30",
-    "subject": "DAA",
-    "room": null,
-    "teacher": null,
-    "notes": null
-  }
-}
-
-User: add OS lab every Tuesday 2 to 4 in CL-11
-Output:
-{
-  "intent": "add_timetable_entry",
-  "data": {
-    "day": "Tuesday",
-    "start_time": "14:00",
-    "end_time": "16:00",
-    "subject": "OS lab",
-    "room": "CL-11",
-    "teacher": null,
-    "notes": null
-  }
-}
-11. show_timetable
-Use this when the user asks for timetable.
-Optional fields:
-- day
-
-JSON format:
+Return this format:
 {
   "intent": "intent_name",
-  "data": {
-    "field": "value"
-  }
+  "data": {}
 }
 
-Important rules:
-- If the user is just chatting, use normal_chat.
-- If important college data should be stored or retrieved, choose the correct tool intent.
-- If required information is missing, still choose the closest intent and put null for missing fields.
-- Return only JSON.
-"""
+Rules:
 
+Use normal_chat for general questions, explanations, writing help, motivation, or casual conversation.
+
+Use add_assignment when the user wants to save a new assignment.
+Data fields:
+title, subject, deadline, notes
+
+deadline must be in this exact format if mentioned:
+YYYY-MM-DD HH:MM
+
+Use the current local datetime given in the user message to convert relative deadlines like "tomorrow at 8 PM" or "Tuesday at 6 PM".
+
+Important:
+If the user gives only a day/date without a time, set deadline to null.
+Do not use 00:00 unless the user clearly says midnight or 12 AM.
+
+Use show_assignments when the user asks to view assignments.
+Data fields:
+status
+
+For show_assignments:
+- - If user says "show assignments", "show pending assignments", or "my assignments", set status to "pending".
+- If user says "show all assignments", set status to null.
+- If user asks for completed/done/submitted assignments, set status to "done".
+
+Use update_assignment_status when the user wants to mark/update an assignment.
+Data fields:
+assignment_id, status
+
+Use mark_attendance when the user wants to mark attendance.
+Data fields:
+subject, status, date, notes
+
+Use show_attendance_summary when the user asks for attendance summary.
+Data fields:
+subject
+
+Use create_reminder when the user wants a reminder.
+Data fields:
+title, reminder_time, repeat_rule
+
+reminder_time must be:
+YYYY-MM-DD HH:MM
+
+Use the current local datetime given in the user message to convert relative times.
+
+If date/time is missing or impossible to determine, use normal_chat and ask for clarification.
+
+If the user gives time without AM/PM like "at 6", "at 8:30", or "by 10", keep the intent as create_reminder but do not invent AM/PM.
+
+Use show_reminders when the user asks to see reminders.
+Data fields:
+status
+
+Use save_project_discussion when the user wants to save project ideas, decisions, rejected ideas, or tech stack notes.
+Data fields:
+project_name, message, discussion_type
+
+Use show_project_summary when the user asks what was discussed/saved about a project.
+Data fields:
+project_name
+
+Use add_timetable_entry when the user wants to add a class/lab/session to timetable.
+Data fields:
+day, start_time, end_time, subject, room, teacher, notes
+
+Use show_timetable when the user asks for timetable.
+Data fields:
+day
+
+Use show_daily_dashboard when the user asks for today's dashboard, daily dashboard, today's plan, what they have today, or today's college summary.
+Data fields:
+none
+
+If required data is missing, put null.
+"""
 
 def decide_intent(user_message):
     current_datetime = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -205,7 +136,7 @@ def decide_intent(user_message):
         user_message=routing_message,
         system_message=INTENT_SYSTEM_MESSAGE,
         temperature=0,
-        max_tokens=400
+        max_tokens=150
     )
 
     try:
@@ -262,6 +193,85 @@ def has_ambiguous_time(user_message):
         return True
 
     return False
+
+def mentions_deadline_without_time(user_message):
+    text = user_message.lower()
+
+    deadline_words = ["due", "deadline", "submit", "submission"]
+
+    has_deadline_word = any(word in text for word in deadline_words)
+
+    if not has_deadline_word:
+        return False
+
+    # Clear relative time examples:
+    # in 2 hours, after 30 minutes
+    if re.search(r"\b(in|after)\s+\d+\s*(min|mins|minute|minutes|hour|hours)\b", text):
+        return False
+
+    # Clear AM/PM
+    if re.search(r"\b(am|pm)\b", text) or re.search(r"\b(a\.m\.|p\.m\.)", text):
+        return False
+
+    # Clear 24-hour or clock time
+    if re.search(r"\b\d{1,2}:\d{2}\b", text):
+        return False
+
+    return True
+
+def fix_weekday_deadline(user_message, deadline):
+    if not deadline:
+        return deadline
+
+    text = user_message.lower()
+
+    weekdays = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6
+    }
+
+    mentioned_day = None
+
+    for day_name, day_number in weekdays.items():
+        if day_name in text:
+            mentioned_day = day_number
+            break
+
+    if mentioned_day is None:
+        return deadline
+
+    try:
+        deadline_datetime = datetime.strptime(deadline, "%Y-%m-%d %H:%M")
+    except ValueError:
+        return deadline
+
+    today = datetime.now()
+    days_ahead = mentioned_day - today.weekday()
+
+    # If the mentioned day has already passed this week, use next week.
+    # If today is Tuesday and user says Tuesday, keep today only if the time is still future.
+    if days_ahead < 0:
+        days_ahead += 7
+
+    corrected_date = today + timedelta(days=days_ahead)
+
+    corrected_datetime = deadline_datetime.replace(
+        year=corrected_date.year,
+        month=corrected_date.month,
+        day=corrected_date.day
+    )
+
+    # If corrected datetime is still in the past, move to next week.
+    if corrected_datetime <= today:
+        corrected_datetime += timedelta(days=7)
+
+    return corrected_datetime.strftime("%Y-%m-%d %H:%M")
+
 def handle_message(user_message):
     decision = decide_intent(user_message)
 
@@ -272,10 +282,23 @@ def handle_message(user_message):
         return ask_llm(user_message)
 
     elif intent == "add_assignment":
+        if mentions_deadline_without_time(user_message):
+            return (
+                "Please mention the time for the assignment deadline.\n\n"
+                "Example:\n"
+                "Add Internship assignment due on Tuesday at 8 PM\n\n"
+                "You can also use 24-hour format, like 20:00."
+            )
+
+        corrected_deadline = fix_weekday_deadline(
+            user_message=user_message,
+            deadline=data.get("deadline")
+        )
+
         return add_assignment(
             title=data.get("title"),
             subject=data.get("subject"),
-            deadline=data.get("deadline"),
+            deadline=corrected_deadline,
             notes=data.get("notes")
         )
 
@@ -312,9 +335,14 @@ def handle_message(user_message):
                 "You can also use 24-hour format, like 18:37."
             )
 
+        corrected_reminder_time = fix_weekday_deadline(
+            user_message=user_message,
+            deadline=data.get("reminder_time")
+        )
+        
         return create_reminder(
             title=data.get("title"),
-            reminder_time=data.get("reminder_time"),
+            reminder_time=corrected_reminder_time,
             repeat_rule=data.get("repeat_rule")
         )
 
@@ -351,5 +379,8 @@ def handle_message(user_message):
             day=data.get("day")
         )
 
+    elif intent == "show_daily_dashboard":
+        return show_daily_dashboard()
+    
     else:
         return ask_llm(user_message)

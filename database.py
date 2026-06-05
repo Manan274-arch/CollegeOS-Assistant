@@ -138,7 +138,6 @@ def reset_database():
     cursor.execute("DROP TABLE IF EXISTS project_ideas")
     cursor.execute("DROP TABLE IF EXISTS project_discussions")
     cursor.execute("DROP TABLE IF EXISTS project_reports")
-    cursor.execute("DROP TABLE IF EXISTS uploaded_images")
     cursor.execute("DROP TABLE IF EXISTS timetable_entries")
 
     conn.commit()
